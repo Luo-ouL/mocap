@@ -81,7 +81,7 @@ class Cameras:
         # convert the frame from RGB to GREY
         grey = cv.cvtColor(img, cv.COLOR_RGB2GRAY)
         # thretholding converts GREY image into binary image
-        grey = cv.threshold(grey, 255*0.3, 255, cv.THRESH_BINARY)[1]
+        grey = cv.threshold(grey, 200, 255, cv.THRESH_BINARY)[1]
         # find the white parts/contours/white dots
         contours,_ = cv.findContours(grey, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
         # draw the detected contours on the origin image in green
@@ -131,32 +131,13 @@ class Cameras:
     def stop_calculating_object_pose(self):
         self.is_calculating_object_pose = False
 
-
-def make_square(img):
-    x, y, _ = img.shape
-    size = max(x, y)
-    new_img = np.zeros((size, size, 3), dtype=np.uint8)
-    ax,ay = (size - img.shape[1])//2,(size - img.shape[0])//2
-    new_img[ay:img.shape[0]+ay,ax:ax+img.shape[1]] = img
-
-    # Pad the new_img array with edge pixel values
-    # Apply feathering effect
-    feather_pixels = 8
-    for i in range(feather_pixels):
-        alpha = (i + 1) / feather_pixels
-        new_img[ay - i - 1, :] = img[0, :] * (1 - alpha)  # Top edge
-        new_img[ay + img.shape[0] + i, :] = img[-1, :] * (1 - alpha)  # Bottom edge
-    
-    return new_img
-
-
-'''
+"""
 Brief: draw lines in image
 Params:
     image: np.array opencv
     lines: py.list 2D
 Retval: image with lines
-'''
+"""
 def drawlines(image, lines):
     row, column = image.shape[:2]
     for l in lines:
@@ -178,7 +159,7 @@ def drawlines(image, lines):
     image = cv.line(image, (x0,y0), (x1,y1), color, 1)
     return image
 
-'''
+"""
 Brief: triangulate single world point,
         through image points' coordinates
         &camera poses,
@@ -188,7 +169,7 @@ Params:
                     but same point in real world
     camera_poses: cameras' poses array
 Retval: object_point
-'''
+"""
 def triangulate_point(image_points, camera_poses):
     image_points = np.array(image_points) # python list->numpy array
     cameras = Cameras.instance() # get camera parameter
@@ -236,7 +217,7 @@ def triangulate_point(image_points, camera_poses):
 
     return object_point
 
-'''
+"""
 Brief: trangulate several world points,
         through image points' coordinates,
         &camera poses,
@@ -246,7 +227,7 @@ Params:
                     image_points[i] is equal to image_points in "triangulate_point"
     camera_poses: camera poses array
 Retval: object points
-'''
+"""
 def triangulate_points(image_points, camera_poses):
     object_points = []
     for image_point_i in image_points:
@@ -255,7 +236,7 @@ def triangulate_points(image_points, camera_poses):
 
     return np.array(object_points)
 
-'''
+"""
 Brief: reproject the object point calculated by "triangulate_point",
         do some calculation and return reprojection error
 Params: 
@@ -264,7 +245,7 @@ Params:
     object_point: retval of "triangulate_point"
 Retval: 
     reprojection_error: the mean squared distance between the object point and reproject point for each camera 
-'''
+"""
 def calculate_reprojection_error(image_points, object_point, camera_poses):
     cameras = Cameras.instance()
     # delete invalid data
@@ -293,7 +274,7 @@ def calculate_reprojection_error(image_points, object_point, camera_poses):
         errors = np.concatenate([errors, (image_points_t[i]-projected_img_point).flatten() ** 2])
     return errors.mean()
 
-'''
+"""
 Brief: reproject the object points calculated by "triangulate_points",
         do some calculation and return reprojection error
 Params: 
@@ -302,7 +283,7 @@ Params:
     object_point: retval of "triangulate_point"
 Retval: 
     reprojection_errors: array of reprojection error
-'''
+"""
 def calculate_reprojection_errors(image_points, object_points, camera_poses):
     errors = np.array([])
     for image_points_i, object_point in zip(image_points, object_points):
@@ -313,7 +294,7 @@ def calculate_reprojection_errors(image_points, object_points, camera_poses):
 
     return errors
 
-'''
+"""
 Brief: after given a rough estimate from "epipolar geometry",
         use the image_points and the initial camera_poses,
         run a nonlinear optimizer from scipy,
@@ -324,7 +305,7 @@ Params:
     camera_poses: camera_poses in "triangulate_points" function
     socketio: used to communicate with frontend, but temporarily not used
 Retval: camera_poses that's optimized
-'''
+"""
 def bundle_adjustment(image_points, camera_poses):
     cameras = Cameras.instance()
 
@@ -375,8 +356,8 @@ def bundle_adjustment(image_points, camera_poses):
 
     return params_to_camera_poses(res.x)[0]
 
-'''
-Berief: find points' correspondances and object points
+"""
+Brief: find points' correspondances and object points
 Params: 
     image_points: sorted by camera index rather than correspondance
     camera_poses: cameras' poses in "triangulate_points" function
@@ -385,7 +366,7 @@ Retval:
     np.array(errors): errors related to object points
     np.array(object_points): object points in different correspondances
     frames: frames that've been drawn
-'''
+"""
 def find_point_correspondance_and_object_points(image_points, camera_poses, frames):
     cameras = Cameras.instance()
     # clear the [None, None] part for each image_points_i
@@ -411,7 +392,6 @@ def find_point_correspondance_and_object_points(image_points, camera_poses, fram
         # calculate epipolar lines and draw lines in frame
         for root_image_point in root_image_points:
             F = fundamental_from_projections(Ps[root_image_point["camera"]], Ps[i])
-            #F = fundamental_from_projections(Ps[i], Ps[root_image_point["camera"]])
             line = cv.computeCorrespondEpilines(np.array([root_image_point["point"]], dtype=np.float32), 1, F) # return shape (1,1,3)
             epipolar_lines.append(line[0,0].tolist())
             frames[i] = drawlines(frames[i], line[0])
@@ -468,7 +448,16 @@ def find_point_correspondance_and_object_points(image_points, camera_poses, fram
     
     return np.array(errors), np.array(object_points), frames
 
-
+"""
+Brief: Calculate object pose using "centroid and distance method"
+Params: 
+    object_points: object_points in world coordinate frame
+    threold: related to the positioning accuracy
+Retval: 
+    R:
+    t:
+    distances:
+"""
 def calculate_object_pose(object_points: np.ndarray, threold) -> np.ndarray:
     R,t,distances = np.array([[]]), np.array([]), np.array([])
     cameras = Cameras.instance()
@@ -526,7 +515,10 @@ def calculate_object_pose(object_points: np.ndarray, threold) -> np.ndarray:
     return R, t, distances
 
 
-
+"""
+Below are functions built from opencv contrib module:sfm ,
+complie sfm from source is so fucking painful
+"""
 def essential_from_fundamental(F: np.ndarray, K1: np.ndarray, K2: np.ndarray) -> np.ndarray:
     """
     Calculate the essential matrix from the fundamental matrix (F) and camera matrices (K1, K2).
@@ -586,4 +578,3 @@ def motion_from_essential(E: np.ndarray) -> Tuple[List[np.ndarray], List[np.ndar
     translations = [t, -t, t, -t]
 
     return rotations_matrices, translations
-

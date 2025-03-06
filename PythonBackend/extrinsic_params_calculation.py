@@ -128,7 +128,7 @@ if __name__ == "__main__":
             continue
 
     mean = np.mean(scale_coef)
-    std = np.std(scale_coef)  
+    std = np.std(scale_coef)
     scale_coef_average = np.mean([x for x in scale_coef if abs(x - mean) < 2 * std]) # 2σ rule
     print("Final scale coef:\n", scale_coef_average)
 
