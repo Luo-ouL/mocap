@@ -18,15 +18,21 @@ def check_camera_devices():
             print(f"Camera {index} is available.")
             cap.release()
         else:
-            print(f"Camera {index} is NOT available.")
+            print(f"Camera {index} is NOT available.\n")
     return None
 check_camera_devices()
 
 ## Choose the webcam and initialize
-camera_index = input("Please enter the camera index.")
+while True:
+    try:
+        camera_index = int(input("Please enter the camera index.\n"))
+        break
+    except ValueError:
+        print("Invalid input, please enter a number.\n")
+        continue
 camera = cv.VideoCapture(camera_index)
 if not camera.isOpened():
-    print("Error: Could not open webcam.")
+    print("Error: Could not open webcam.\n")
     exit()
 camera.set(cv.CAP_PROP_FRAME_WIDTH, 640)
 camera.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
@@ -37,7 +43,7 @@ CAP_PROP_FPS = camera.get(cv.CAP_PROP_FPS)
 print(f"Real width: {CAP_PROP_FRAME_WIDTH}")
 print(f"Real height: {CAP_PROP_FRAME_HEIGHT}")
 print(f"Real fps: {CAP_PROP_FPS}")
-input("\nPress enter to continue.\n")
+input("Press enter to continue.\n")
 
 ## Create directory to save images
 os.makedirs(f'{folder_name}/camera_{camera_index}', exist_ok=True)
@@ -45,12 +51,23 @@ os.makedirs(f'{folder_name}/camera_{camera_index}', exist_ok=True)
 ## Capture 10 images
 orientaion = 0
 while True:
-    input("Press enter to start capture.")
     num = 0
     while num < 3:
+        input("Press enter to start capture.\n")
+        for _ in range(5): # ensure frame is newest
+            camera.read()
         ret, frame = camera.read()
-        filename = f'{folder_name}/cam_{camera_index}/image_{orientaion}_{num}.jpg'
-        usr_input = input("Enter 1 to save image:\n")
+        filename = f'{folder_name}/camera_{camera_index}/image_{orientaion}_{num}.jpg'
+        cv.imshow(f"{filename}", frame)
+        cv.waitKey(1000)
+        cv.destroyAllWindows()
+        while True:
+            try:
+                usr_input = int(input("Enter 1 to save image:\n"))
+                break
+            except ValueError:
+                print("Invalid input, please enter a number.\n")
+                continue
         if usr_input == 1:
             cv.imwrite(filename, frame)
             print(f"image{num} captured")
@@ -58,18 +75,22 @@ while True:
         else:
             continue
 
-
-    usr_input = input("Enter 0 to continue\n")
-    if usr_input == 0:
-        usr_input = input("Enter 1 to change orientation.\n")
-        if usr_input == 1: 
-            orientaion += 1
-        continue
-    else:
+    while True:
+        try:
+            usr_input = int(input("Enter 0 to continue\n"))
+            if usr_input == 0:
+                orientaion += 1
+                break
+            break
+        except ValueError:
+            print("Invalid input, please enter a number.\n")
+            continue
+    
+    if usr_input != 0:
         break
 
 ## Calculate intrinsic matrix and distortion coef
-image_calibrated = f'{folder_name}/cam_{camera_index}_c'
+image_calibrated = f'{folder_name}/camera_{camera_index}_c'
 os.makedirs(image_calibrated, exist_ok=True)
 
 CHECKERBOARD = (5,6)
@@ -82,7 +103,7 @@ objp[0,:,:2] = np.mgrid[0:CHECKERBOARD[0], 0:CHECKERBOARD[1]].T.reshape(-1, 2)
 prev_img_shape = None
 
 # Extracting path of individual image stored in a given directory
-images = glob.glob(f'{folder_name}/{camera_index}/*.jpg')
+images = glob.glob(f'{folder_name}/camera_{camera_index}/*.jpg')
 for fname in images:
     img = cv.imread(fname)
     gray = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
@@ -97,7 +118,7 @@ for fname in images:
     them on the images of checker board
     """
     if ret == True:
-        objpoints.append(objp)
+        objpoints.append(objp.copy())
         corners2 = cv.cornerSubPix(gray, corners, (11,11),(-1,-1), criteria)
         imgpoints.append(corners2)
         img = cv.drawChessboardCorners(img, CHECKERBOARD, corners2, ret)
