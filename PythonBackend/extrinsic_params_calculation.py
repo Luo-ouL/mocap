@@ -11,7 +11,7 @@ if __name__ == "__main__":
     os.makedirs(folder_path, exist_ok=True)
 
     ## Choose cameras and modify number of point pairs
-    num_image_point_pairs = 30
+    num_image_point_pairs = 20
     camera_indices = [0,1]
 
     ## Read frames and collect image points
@@ -24,11 +24,12 @@ if __name__ == "__main__":
 
     for i in range(num_image_point_pairs):
         input(f"\nPress enter to capture number{i} image")
-        frames = cameras.camera_read()
+        for _ in range(5): # ensure frame is newest
+            frames = cameras.camera_read()
         image_point_0 = cameras.find_dot(frames[0])[1]
         image_point_1 = cameras.find_dot(frames[1])[1]
         print(image_point_0, image_point_1)
-        if len(image_point_0)==1 and len(image_point_1)==1 and image_point_0[0][0] is not None and image_point_1[0][0] is not None and i>4:
+        if len(image_point_0)==1 and len(image_point_1)==1 and image_point_0[0][0] is not None and image_point_1[0][0] is not None:
             image_point_pairs[0].append(image_point_0[0])
             image_point_pairs[1].append(image_point_1[0])
             filename0 = f"{folder_path}/camera_{camera_indices[0]}/image_{i}.jpg"
@@ -103,13 +104,20 @@ if __name__ == "__main__":
     input("\nBundle adjustment complete, please check and press enter to continue.\n")
 
     ## Determine the scale of t
-    actual_distance = 0.2
+    while True:
+        try:
+            actual_distance = float(input("Please enter the actual distance(m).\n"))
+            break
+        except ValueError:
+            print("Invalid input, please enter a number.\n")
+            continue
     num_scale_coef = 20
     scale_coef = []
     i = 0
     while i < num_scale_coef:
         input(f"\nPress enter to capture image{i} for the determination of t")
-        frames = cameras.camera_read()
+        for _ in range(5): # ensure frame is newest
+            frames = cameras.camera_read()
         image_point_0 = cameras.find_dot(frames[0])[1]
         image_point_1 = cameras.find_dot(frames[1])[1]
         if len(image_point_0) == 2 and len(image_point_1) == 2:
@@ -138,7 +146,8 @@ if __name__ == "__main__":
     ## Establish world coordinate
     while True:
         input(f"Press enter to capture image for acquiring world coordinate\n")
-        frames = cameras.camera_read()
+        for _ in range(5): # ensure frame is newest
+            frames = cameras.camera_read()
         image_point_0 = cameras.find_dot(frames[0])[1]
         image_point_1 = cameras.find_dot(frames[1])[1]
         if len(image_point_0) == 3 and len(image_point_1) == 3:
@@ -153,18 +162,20 @@ if __name__ == "__main__":
                 print("Calculated object points not enough.\n")
                 continue
             while len(object_points) == 3:
-                usr_input = input("Choose points to be the world coordinate's origin,x_axis,y_axis")
+                usr_input = input("Choose points to be the world coordinate's origin,x_axis,y_axis\n")
                 numbers = usr_input.split()
                 numbers = [int(num) for num in numbers]
                 if all(0 <= num <= 2 for num in numbers) and len(numbers) == 3:
                     x_axis = object_points[numbers[1]] - object_points[numbers[0]]
                     y_axis = object_points[numbers[2]] - object_points[numbers[0]]
-                    z_axis = np.cross(x_axis, y_axis)
-                    y_axis = np.cross(z_axis, x_axis)
 
-                    x_axis = x_axis / linalg.norm(x_axis)
-                    y_axis = y_axis / linalg.norm(y_axis)
-                    z_axis = z_axis / linalg.norm(z_axis)
+                    x_axis = x_axis / np.linalg.norm(x_axis)
+
+                    z_axis = np.cross(x_axis, y_axis)
+                    z_axis = z_axis / np.linalg.norm(z_axis)
+
+                    y_axis = np.cross(z_axis, x_axis)
+                    y_axis = y_axis / np.linalg.norm(y_axis)
                     
                     R = np.array([x_axis, y_axis, z_axis])
                     t = np.dot(R,-object_points[numbers[0]]).reshape(3,1)
@@ -177,7 +188,7 @@ if __name__ == "__main__":
                     continue
             break
         else:
-            print("\nimage points num wrong.\n")
+            print("image points num wrong.\n")
             continue
 
 def to_world_coordinate(object_points_camera: np.ndarray, camera_to_world_matrix) -> np.ndarray:
@@ -185,4 +196,4 @@ def to_world_coordinate(object_points_camera: np.ndarray, camera_to_world_matrix
         return np.array([])
     else:
         Pc = np.concatenate((object_points_camera.transpose(1,0),np.ones((1,len(object_points_camera)))),axis=0)
-        return np.dot(camera_to_world_matrix,Pc).transpose(1,0)[:, :-1]
+        return (camera_to_world_matrix @ Pc).transpose(1,0)[:, :-1]
